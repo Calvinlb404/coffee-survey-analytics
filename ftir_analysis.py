@@ -36,7 +36,19 @@ def combine_data(filenames):
             new_df[file[:-4]] = to_add.iloc[:, 1].values
     new_df.to_csv('all_data.csv', index=False)
 
-def load_and_preprocess(filename, window_length=11, polyorder=2, deriv=1):
+def transpose_data(file):
+    """
+    Transpose csv data, and label columns by index
+    """
+    full_path = f'./data/{file}'
+    if not os.path.exists(full_path):
+        raise FileNotFoundError(f"File not found: {full_path}")
+    df = pd.read_csv(full_path)
+    df_transposed = df.transpose()
+    df_transposed.columns = [f'Taste_{num}' for num in range(1,81)]
+    df_transposed.to_csv('transposed_tasting.csv', index=False)
+
+def load_and_preprocess(filename, window_length=11, polyorder=2, deriv=1, type='ftir'):
     """
     Load FTIR data from CSV and apply preprocessing
     
@@ -72,31 +84,23 @@ def load_and_preprocess(filename, window_length=11, polyorder=2, deriv=1):
     # Print column names to help with debugging
     # print(f"Column names: {df.columns.tolist()}")
     
-    # Separate wavenumber axis and spectral intensity data
-    wavenumbers = df.iloc[:, 0].values             # First column = wavenumber
-    spectra_data = df.iloc[:, 1:].values.T         # Transpose to get shape: n_samples x n_points
-    
-    # Extract sample names
-    sample_names = df.columns[1:]
-    print(df.columns)
-    print(df.columns[1:])
-    print(f"Found {len(sample_names)} samples")
-    
-    # Try to extract labels from sample names
-    if any(['arabica' in name.lower() or 'robusta' in name.lower() for name in sample_names]):
-        print("Extracting coffee type labels from sample names...")
-        labels = []
-        for name in sample_names:
-            if 'arabica' in name.lower():
-                labels.append('Arabica')
-            elif 'robusta' in name.lower():
-                labels.append('Robusta')
-            else:
-                labels.append('Unknown')
-        print(f"Labels: {labels}")
-    else:
-        labels = None
-        print("No coffee type labels found in sample names")
+    labels = None
+    wavenumbers = None
+    if type == 'ftir':
+        # Separate wavenumber axis and spectral intensity data
+        wavenumbers = df.iloc[:, 0].values             # First column = wavenumber
+        spectra_data = df.iloc[:, 1:].values.T         # Transpose to get shape: n_samples x n_points
+        # Extract sample names
+        sample_names = df.columns[1:]
+        labels = [''.join([name[0],name[4],name[8]]) for name in sample_names]
+    elif type == 'tasting':
+        spectra_data = df.iloc[:,:15].values.T         # Transpose to get shape: n_samples x n_points
+        sample_names = df.columns[:15]
+        labels = [name[-2:] for name in sample_names]
+    print(f"Labels: {labels}")
+
+    print("spectra_data shape:", spectra_data.shape)
+    print("Number of labels:", len(labels))
     
     # Apply Savitzky-Golay filter
     print(f"Applying Savitzky-Golay filter (window={window_length}, order={polyorder}, deriv={deriv})...")
@@ -156,7 +160,6 @@ def plot_pca_results(pca_scores, pca, labels=None, title="PCA of Coffee FTIR Spe
     var_exp = pca.explained_variance_ratio_ * 100
     
     plt.figure(figsize=(10, 8))
-    
     if labels is not None:
         labels = np.array(labels)
         for lab in np.unique(labels):
@@ -164,12 +167,10 @@ def plot_pca_results(pca_scores, pca, labels=None, title="PCA of Coffee FTIR Spe
             plt.scatter(pca_scores[idx, 0], pca_scores[idx, 1], label=str(lab), alpha=0.8, s=100)
     else:
         plt.scatter(pca_scores[:, 0], pca_scores[:, 1], color='teal', alpha=0.8, s=100)
-    
     # Annotate axes with percentage of variance explained
     plt.xlabel(f"PC1 ({var_exp[0]:.1f}% variance)", fontsize=12)
     plt.ylabel(f"PC2 ({var_exp[1]:.1f}% variance)", fontsize=12)
     plt.title(title, fontsize=14)
-    
     if labels is not None:
         plt.legend(title="Coffee Type", fontsize=12)
     
@@ -185,9 +186,11 @@ def main():
     # all_files = ['DarkFastFast.csv','DarkSlowFast.csv','DarkFastSlow.csv','DarkSlowSlow.csv',
     #              'LightFastFast.csv','LightSlowFast.csv','LightFastSlow.csv','LightSlowSlow.csv']
     # combine_data(all_files)
+    
+    #transpose_data('Tasting.csv')
 
     # File path
-    data_file = './data/all_data.csv'
+    data_file = './data/all_tasting.csv'
     
     # Parameters for preprocessing
     window_length = 11  # must be odd
@@ -197,11 +200,11 @@ def main():
     try:
         # Load and preprocess data
         wavenumbers, spectra_processed, labels = load_and_preprocess(
-            data_file, window_length, polyorder, deriv
+            data_file, window_length, polyorder, deriv, type='tasting'
         )
         
         # Perform PCA
-        pca_scores, pca = perform_pca(spectra_processed,n_components=2)
+        pca_scores, pca = perform_pca(spectra_processed,n_components=11)
         
         # Plot PCA results
         plot_pca_results(pca_scores, pca, labels)
@@ -212,4 +215,4 @@ def main():
         print(f"Error: {e}")
 
 if __name__ == "__main__":
-    main() 
+    main()
