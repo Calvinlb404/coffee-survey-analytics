@@ -190,7 +190,7 @@ def main():
     #transpose_data('Tasting.csv')
 
     # File path
-    data_file = './data/all_tasting.csv'
+    data_file = './data/all_ftir.csv'
     
     # Parameters for preprocessing
     window_length = 11  # must be odd
@@ -200,11 +200,12 @@ def main():
     try:
         # Load and preprocess data
         wavenumbers, spectra_processed, labels = load_and_preprocess(
-            data_file, window_length, polyorder, deriv, type='tasting'
+            data_file, window_length, polyorder, deriv, type='ftir'
         )
         
         # Perform PCA
-        pca_scores, pca = perform_pca(spectra_processed,n_components=11)
+        pca_scores, pca = perform_pca(spectra_processed,n_components=5)
+        print(pca_scores)
         
         # Plot PCA results
         plot_pca_results(pca_scores, pca, labels)
